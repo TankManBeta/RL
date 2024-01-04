@@ -4,6 +4,9 @@
     @Author 坦克手贝塔
     @Date 2023/12/24 15:10
 """
+from datetime import datetime
+from pathlib import Path
+
 import gym
 import matplotlib.pyplot as plt
 import torch
@@ -32,7 +35,7 @@ def run_one_episode(env, agent):
     return reward_episode
 
 
-def evaluate(env, agent):
+def evaluate(env, agent, save_path):
     state, info = env.reset()
     reward_episode = 0
     frame_list = []
@@ -47,15 +50,23 @@ def evaluate(env, agent):
         count += 1
         frame_list.append(env.render())
     # draw frames
-    for frame in frame_list:
+    for idx, frame in enumerate(frame_list):
         plt.imshow(frame)
         plt.axis('off')
+        plt.savefig(f"{save_path}/{idx}.png")
         plt.show()
 
 
 def train():
     print("Training starts!!!")
-    writer = SummaryWriter(log_dir="../results/logs")
+    now = datetime.now().strftime("%Y%m%d%H%M%S")
+    prefix_path = Path(f"../results/{now}")
+    prefix_path.mkdir(exist_ok=True)
+    log_path = prefix_path / "logs"
+    log_path.mkdir(exist_ok=True)
+    pic_path = prefix_path / "pics"
+    pic_path.mkdir(exist_ok=True)
+    writer = SummaryWriter(log_dir=log_path)
     env_name = "CartPole-v1"
     env = gym.make(env_name, render_mode="rgb_array")
     observation_n, action_n = env.observation_space.shape[0], env.action_space.n
@@ -70,4 +81,4 @@ def train():
     plt.plot(list(range(len(reward_list))), reward_list)
     plt.show()
     print("Training ends!!!")
-    evaluate(env, agent)
+    evaluate(env, agent, pic_path)
