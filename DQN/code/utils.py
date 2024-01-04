@@ -64,6 +64,8 @@ def train():
     log_path.mkdir(exist_ok=True)
     pic_path = prefix_path / "pics"
     pic_path.mkdir(exist_ok=True)
+    checkpoint_path = prefix_path / "checkpoints"
+    checkpoint_path.mkdir(exist_ok=True)
     writer = SummaryWriter(log_dir=log_path)
     env_name = "CartPole-v1"
     env = gym.make(env_name, render_mode="rgb_array")
@@ -72,12 +74,14 @@ def train():
     memory_pool = MemoryPool(pool_size=50000)
     batch_size = 32
     reward_list = []
-    for epoch in range(1000):
-        epsilon = max(0.01, 0.1 - 0.01*(epoch/20))
+    for episode in range(100):
+        epsilon = max(0.01, 0.1 - 0.01*(episode/20))
         reward = run_one_episode(env, agent, memory_pool, batch_size, epsilon)
         reward_list.append(reward)
-        print(f"Episode: {epoch}, reward: {reward}")
-        writer.add_scalar("Reward/train", reward, global_step=epoch)
+        print(f"Episode: {episode}, reward: {reward}")
+        writer.add_scalar("Reward/train", reward, global_step=episode)
+        if (episode+1) % 10 == 0:
+            agent.save_checkpoint(checkpoint_path, episode)
     writer.close()
     plt.plot(list(range(len(reward_list))), reward_list)
     plt.show()

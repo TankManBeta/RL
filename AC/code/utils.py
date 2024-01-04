@@ -66,17 +66,21 @@ def train():
     log_path.mkdir(exist_ok=True)
     pic_path = prefix_path / "pics"
     pic_path.mkdir(exist_ok=True)
+    checkpoint_path = prefix_path / "checkpoints"
+    checkpoint_path.mkdir(exist_ok=True)
     writer = SummaryWriter(log_dir=log_path)
     env_name = "CartPole-v1"
     env = gym.make(env_name, render_mode="rgb_array")
     observation_n, action_n = env.observation_space.shape[0], env.action_space.n
     agent = ACAgent(observation_n, action_n, gamma=0.98, lr=2e-3, epsilon=0.01)
     reward_list = []
-    for epoch in range(1000):
+    for episode in range(100):
         reward = run_one_episode(env, agent)
         reward_list.append(reward)
-        print(f"Episode: {epoch}, reward: {reward}")
-        writer.add_scalar("Reward/train", reward, global_step=epoch)
+        print(f"Episode: {episode}, reward: {reward}")
+        writer.add_scalar("Reward/train", reward, global_step=episode)
+        if (episode+1) % 10 == 0:
+            agent.save_checkpoint(checkpoint_path, episode)
     writer.close()
     plt.plot(list(range(len(reward_list))), reward_list)
     plt.show()

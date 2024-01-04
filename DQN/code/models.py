@@ -113,3 +113,7 @@ class DQNAgent:
         if self.interval_count % self.update_interval == 0:
             self.update_params()
         self.interval_count += 1
+
+    def save_checkpoint(self, save_path, episode):
+        torch.save(self.evaluate_model.state_dict(), f"{save_path}/{episode}-evaluate.pkl")
+        torch.save(self.target_model.state_dict(), f"{save_path}/{episode}-target.pkl")

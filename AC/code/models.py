@@ -105,3 +105,7 @@ class ACAgent:
         loss_critic.backward()
         self.optimizer_actor.step()
         self.optimizer_critic.step()
+
+    def save_checkpoint(self, save_path, episode):
+        torch.save(self.actor.state_dict(), f"{save_path}/{episode}-actor.pkl")
+        torch.save(self.critic.state_dict(), f"{save_path}/{episode}-critic.pkl")
