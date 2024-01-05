@@ -65,13 +65,12 @@ class Critic(nn.Module):
 
 
 class ACAgent:
-    def __init__(self, n_features, n_actions, gamma=0.98, lr=1e-3, epsilon=0.01):
+    def __init__(self, n_features, n_actions, gamma=0.98, lr=1e-3):
         super(ACAgent, self).__init__()
         self.n_features = n_features
         self.n_actions = n_actions
         self.gamma = gamma
         self.lr = lr
-        self.epsilon = epsilon
         self.actor = Actor(n_features, n_actions).to(DEVICE)
         self.critic = Critic(n_features, n_actions).to(DEVICE)
         self.optimizer_actor = optim.Adam(params=self.actor.parameters(), lr=lr)
@@ -85,10 +84,10 @@ class ACAgent:
         return action.item()
 
     def learn(self, transition_dict):
-        state = torch.tensor(transition_dict["state"], dtype=torch.float).to(DEVICE)
+        state = torch.tensor(np.array(transition_dict["state"]), dtype=torch.float).to(DEVICE)
         action = torch.tensor(transition_dict["action"]).view(-1, 1).to(DEVICE)
         reward = torch.tensor(transition_dict["reward"], dtype=torch.float).view(-1, 1).to(DEVICE)
-        state_next = torch.tensor(transition_dict["state_next"], dtype=torch.float).to(DEVICE)
+        state_next = torch.tensor(np.array(transition_dict["state_next"]), dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict["done"], dtype=torch.float).view(-1, 1).to(DEVICE)
 
         v = self.critic(state)

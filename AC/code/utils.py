@@ -72,7 +72,7 @@ def train():
     env_name = "CartPole-v1"
     env = gym.make(env_name, render_mode="rgb_array")
     observation_n, action_n = env.observation_space.shape[0], env.action_space.n
-    agent = ACAgent(observation_n, action_n, gamma=0.98, lr=2e-3, epsilon=0.01)
+    agent = ACAgent(observation_n, action_n, gamma=0.98, lr=2e-3)
     reward_list = []
     for episode in range(100):
         reward = run_one_episode(env, agent)
