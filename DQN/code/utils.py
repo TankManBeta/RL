@@ -41,7 +41,6 @@ def evaluate(env, agent, save_path):
     count = 0
     while count < 200 and not done:
         action = torch.argmax(agent.evaluate_model(state)).item()
-        # action = agent.choose_action(state, 0.01)
         next_state, reward, done, _, _ = env.step(action)
         reward_episode += reward
         state = next_state
