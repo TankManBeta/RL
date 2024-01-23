@@ -126,34 +126,35 @@ class PPOAgent:
         return action, action_prob
 
     def learn(self, transition_dict):
+        # process data
         state = torch.tensor(np.array(transition_dict["state"]), dtype=torch.float).to(DEVICE)
         action = torch.tensor(transition_dict["action"]).view(-1, 1).to(DEVICE)
         reward = torch.tensor(transition_dict["reward"], dtype=torch.float).view(-1, 1).to(DEVICE)
         state_next = torch.tensor(np.array(transition_dict["state_next"]), dtype=torch.float).to(DEVICE)
         action_prob = torch.tensor(transition_dict["action_prob"], dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict["done"], dtype=torch.float).view(-1, 1).to(DEVICE)
-
+        # calculate advantage function
         v = self.critic(state)
         v_next = self.critic(state_next)
         td = self.gamma * v_next * (1 - done) + reward - v
         td = td.detach().numpy()
         advantage_list = []
         advantage = 0.0
-
         for td_t in td[::-1]:
             advantage = self.gamma * self.lam * advantage + td_t[0]
             advantage_list.append([advantage])
         advantage_list.reverse()
         advantage = torch.tensor(advantage_list, dtype=torch.float)
-
+        # calculate the importance weight
         pi = self.actor(state)
         prob = pi.gather(1, action)
         ratio = torch.exp(torch.log(prob) - torch.log(action_prob))
-
+        # ppo clip
         surr1 = ratio * advantage
         surr2 = torch.clamp(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip) * advantage
+        # loss of actor
         loss_actor = torch.mean(-torch.min(surr1, surr2))
-
+        # loss of critic
         loss_critic = self.loss_function(self.gamma * v_next * (1-done) + reward, v)
         self.optimizer_actor.zero_grad()
         self.optimizer_critic.zero_grad()

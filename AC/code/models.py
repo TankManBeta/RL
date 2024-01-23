@@ -15,6 +15,7 @@ from torch.distributions import Categorical
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
+# Actor
 class Actor(nn.Module):
     def __init__(self, n_features, n_actions, n_width=300, n_depth=2):
         super(Actor, self).__init__()
@@ -40,6 +41,7 @@ class Actor(nn.Module):
         return out
 
 
+# Critic
 class Critic(nn.Module):
     def __init__(self, n_features, n_actions, n_width=300, n_depth=2):
         super(Critic, self).__init__()
@@ -77,6 +79,7 @@ class ACAgent:
         self.optimizer_critic = optim.Adam(params=self.critic.parameters(), lr=lr)
         self.loss_function = nn.MSELoss()
 
+    # choose action according to the distribution
     def choose_action(self, state):
         pi = self.actor(state)
         dist = Categorical(pi)
@@ -84,19 +87,24 @@ class ACAgent:
         return action.item()
 
     def learn(self, transition_dict):
+        # process data
         state = torch.tensor(np.array(transition_dict["state"]), dtype=torch.float).to(DEVICE)
         action = torch.tensor(transition_dict["action"]).view(-1, 1).to(DEVICE)
         reward = torch.tensor(transition_dict["reward"], dtype=torch.float).view(-1, 1).to(DEVICE)
         state_next = torch.tensor(np.array(transition_dict["state_next"]), dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict["done"], dtype=torch.float).view(-1, 1).to(DEVICE)
 
+        # calculate advantage function
         v = self.critic(state)
         v_next = self.critic(state_next)
         td = self.gamma * v_next * (1 - done) + reward - v
+        # get probability
         pi = self.actor(state)
         prob = pi.gather(1, action)
         log_prob = torch.log(prob)
+        # loss of actor
         loss_actor = torch.mean(-log_prob * td.detach())
+        # loss of critic
         loss_critic = self.loss_function(self.gamma * v_next * (1-done) + reward, v)
         self.optimizer_actor.zero_grad()
         self.optimizer_critic.zero_grad()

@@ -20,7 +20,7 @@ def run_one_episode(env, agent, data_pool):
     done = False
     count = 0
     while count < 200 and not done:
-        # use stored data to train model
+        # use stored data to train model(don't need complete trajectory)
         for _ in range(20):
             action, action_prob = agent.choose_action(state)
             state_next, reward, done, _, _ = env.step(action)
