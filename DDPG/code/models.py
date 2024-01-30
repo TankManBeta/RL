@@ -123,19 +123,21 @@ class DDPGAgent:
         reward = torch.tensor(transition_dict.reward, dtype=torch.float).view(-1, 1).to(DEVICE)
         state_next = torch.tensor(np.array(transition_dict.state_next), dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict.done, dtype=torch.float).view(-1, 1).to(DEVICE)
-
+        # calculate q value
         q_value = self.q(state, action)
+        # calculate target q value for next state and action
         q_value_next = reward + self.gamma * self.q_target(state_next, self.mu_target(state_next)) * (1-done)
+        # critic loss
         loss_q = torch.mean(F.mse_loss(q_value, q_value_next))
         self.optimizer_q.zero_grad()
         loss_q.backward()
         self.optimizer_q.step()
-
+        # actor loss
         loss_mu = -torch.mean(self.q(state, self.mu(state)))
         self.optimizer_mu.zero_grad()
         loss_mu.backward()
         self.optimizer_mu.step()
-
+        # soft update
         self.soft_update(self.mu, self.mu_target)
         self.soft_update(self.q, self.q_target)
 

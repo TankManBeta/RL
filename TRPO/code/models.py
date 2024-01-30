@@ -48,8 +48,11 @@ class TRPOAgent:
         self.critic = ValueNet(state_dim, hidden_dim).to(DEVICE)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=critic_lr)
         self.gamma = gamma
+        # GAE parameter
         self.lam = lam
+        # KL divergence maximum constraint
         self.kl_constraint = kl_constraint
+        # linear search parameter
         self.alpha = alpha
 
     def choose_action(self, state):
@@ -58,21 +61,26 @@ class TRPOAgent:
         action = dist.sample().item()
         return action
 
+    # calculate the product of the Hessian matrix and a vector
     def hessian_matrix_vector_product(self, states, old_action_dists, vector):
         new_action_dists = torch.distributions.Categorical(self.actor(states))
+        # calculate the average KL divergence
         kl = torch.mean(torch.distributions.kl.kl_divergence(old_action_dists, new_action_dists))
         kl_grad = torch.autograd.grad(kl, self.actor.parameters(), create_graph=True)
         kl_grad_vector = torch.cat([grad.view(-1) for grad in kl_grad])
+        # dot product between the gradient of KL divergence and a vector
         kl_grad_vector_product = torch.dot(kl_grad_vector, vector)
         grad2 = torch.autograd.grad(kl_grad_vector_product, self.actor.parameters())
         grad2_vector = torch.cat([grad.view(-1) for grad in grad2])
         return grad2_vector
 
+    # conjugate gradient method for solving equations
     def conjugate_gradient(self, grad, states, old_action_dists):
         x = torch.zeros_like(grad)
         r = grad.clone()
         p = grad.clone()
         r2 = torch.dot(r, r)
+        # mainloop
         for i in range(10):
             Hp = self.hessian_matrix_vector_product(states, old_action_dists, p)
             alpha = r2 / torch.dot(p, Hp)
@@ -86,14 +94,17 @@ class TRPOAgent:
             r2 = new_r2
         return x
 
+    # compute policy objective
     def compute_surrogate_obj(self, states, actions, advantage, old_log_prob, actor):
         log_prob = torch.log(actor(states).gather(1, actions))
         ratio = torch.exp(log_prob - old_log_prob)
         return torch.mean(ratio * advantage)
 
-    def line_search(self, states, actions, advantage, old_log_prob, old_action_dists, max_vec):
+    # linear search
+    def linear_search(self, states, actions, advantage, old_log_prob, old_action_dists, max_vec):
         old_para = torch.nn.utils.convert_parameters.parameters_to_vector(self.actor.parameters())
         old_obj = self.compute_surrogate_obj(states, actions, advantage, old_log_prob, self.actor)
+        # mainloop
         for i in range(15):
             coefficient = self.alpha ** i
             new_para = old_para + coefficient * max_vec
@@ -106,15 +117,19 @@ class TRPOAgent:
                 return new_para
         return old_para
 
+    # update policy function
     def policy_learn(self, states, actions, old_action_dists, old_log_prob, advantage):
         surrogate_obj = self.compute_surrogate_obj(states, actions, advantage, old_log_prob, self.actor)
         grads = torch.autograd.grad(surrogate_obj, self.actor.parameters())
         obj_grad = torch.cat([grad.view(-1) for grad in grads]).detach()
+        # calculate x using conjugate gradient method
         descent_direction = self.conjugate_gradient(obj_grad, states, old_action_dists)
         Hd = self.hessian_matrix_vector_product(states, old_action_dists, descent_direction)
         max_coefficient = torch.sqrt(2 * self.kl_constraint / (torch.dot(descent_direction, Hd) + 1e-8))
-        new_para = self.line_search(states, actions, advantage, old_log_prob, old_action_dists,
-                                    descent_direction * max_coefficient)
+        # linear search
+        new_para = self.linear_search(states, actions, advantage, old_log_prob, old_action_dists,
+                                      descent_direction * max_coefficient)
+        # update policy with linear search-derived parameters
         torch.nn.utils.convert_parameters.vector_to_parameters(new_para, self.actor.parameters())
 
     def learn(self, transition_dict):
@@ -123,16 +138,20 @@ class TRPOAgent:
         reward = torch.tensor(transition_dict["reward"], dtype=torch.float).view(-1, 1).to(DEVICE)
         next_state = torch.tensor(np.array(transition_dict["next_state"]), dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict["done"], dtype=torch.float).view(-1, 1).to(DEVICE)
+        # calculate td_delta
         td_target = reward + self.gamma * self.critic(next_state) * (1 - done)
         td_delta = td_target - self.critic(state)
+        # calculate advantage function
         from utils import compute_advantage
         advantage = compute_advantage(self.gamma, self.lam, td_delta.cpu()).to(DEVICE)
         old_log_prob = torch.log(self.actor(state).gather(1, action)).detach()
         old_action_dists = torch.distributions.Categorical(self.actor(state).detach())
+        # update critic network parameter
         critic_loss = torch.mean(F.mse_loss(self.critic(state), td_target.detach()))
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
+        # update policy network parameter
         self.policy_learn(state, action, old_action_dists, old_log_prob, advantage)
 
     def save_checkpoint(self, save_path, episode):

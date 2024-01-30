@@ -73,16 +73,23 @@ class Critic(nn.Module):
 class TD3Agent:
     def __init__(self, n_states, n_actions, action_space, gamma=0.99, policy_freq=2, actor_lr=1e-3, critic_lr=1e-3,
                  hidden_dim=256, tau=0.005, policy_noise=0.2, explore_noise=0.1, noise_clip=0.5, explore_steps=10):
+        # td target parameter
         self.gamma = gamma
+        # learning rate
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
+        # standard deviation of noise added to the output of the policy
         self.policy_noise = policy_noise
+        # maximum value of noise added to the policy
         self.noise_clip = noise_clip
+        # exploration ratio
         self.explore_noise = explore_noise
+        # update frequency of the target policy network
         self.policy_freq = policy_freq
+        # soft update parameters of the target network
         self.tau = tau
         self.sample_count = 0
-        self.policy_freq = policy_freq
+        # steps to explore
         self.explore_steps = explore_steps
         self.n_actions = n_actions
         self.n_states = n_states
@@ -129,18 +136,21 @@ class TD3Agent:
         state_next = torch.tensor(np.array(transition_dict.state_next), dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict.done, dtype=torch.float).view(-1, 1).to(DEVICE)
 
-        # get next action
+        # construct noise incorporating target actions
         noise = (torch.randn_like(action) * self.policy_noise).clamp(-self.noise_clip, self.noise_clip)
+        # calculate target actions with added noise
         next_action = (self.actor_target(state_next) + noise).clamp(-self.action_scale + self.action_bias,
                                                                     self.action_scale + self.action_bias)
-        # get target q value
+        # calculate the ratings of two critic networks for the next state and action
         target_q1, target_q2 = self.critic1_target(state_next, next_action).detach(), self.critic2_target(
             state_next, next_action).detach()
+        # select a smaller value to calculate the target q value
         target_q = torch.min(target_q1, target_q2)
         target_q = reward + self.gamma * target_q * (1 - done)
 
         # get q value
         current_q1, current_q2 = self.critic1(state, action), self.critic2(state, action)
+        # critic loss
         critic1_loss = F.mse_loss(current_q1, target_q)
         critic2_loss = F.mse_loss(current_q2, target_q)
         self.critic1_optimizer.zero_grad()
@@ -149,8 +159,9 @@ class TD3Agent:
         self.critic2_optimizer.zero_grad()
         critic2_loss.backward()
         self.critic2_optimizer.step()
-
+        # delay policy update
         if self.sample_count % self.policy_freq == 0:
+            # actor loss
             actor_loss = -self.critic1(state, self.actor(state)).mean()
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
