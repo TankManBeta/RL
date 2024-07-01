@@ -136,7 +136,8 @@ class PPOAgent:
         # calculate advantage function
         v = self.critic(state)
         v_next = self.critic(state_next)
-        td = self.gamma * v_next * (1 - done) + reward - v
+        td_target = self.gamma * v_next * (1 - done) + reward
+        td = td_target - v
         td = td.detach().numpy()
         advantage_list = []
         advantage = 0.0
@@ -145,17 +146,20 @@ class PPOAgent:
             advantage_list.append([advantage])
         advantage_list.reverse()
         advantage = torch.tensor(advantage_list, dtype=torch.float)
-        # calculate the importance weight
         pi = self.actor(state)
+        dist = Categorical(probs=pi)
+        dist_entropy = dist.entropy().mean()
+        # dist_entropy = -torch.sum(pi * torch.log(pi + 1e-10), dim=1, keepdim=True)
         prob = pi.gather(1, action)
+        # calculate the importance weight
         ratio = torch.exp(torch.log(prob) - torch.log(action_prob))
         # ppo clip
         surr1 = ratio * advantage
         surr2 = torch.clamp(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip) * advantage
         # loss of actor
-        loss_actor = torch.mean(-torch.min(surr1, surr2))
+        loss_actor = torch.mean(-torch.min(surr1, surr2)) - 0.01 * dist_entropy
         # loss of critic
-        loss_critic = self.loss_function(self.gamma * v_next * (1-done) + reward, v)
+        loss_critic = self.loss_function(td_target.detach(), v)
         self.optimizer_actor.zero_grad()
         self.optimizer_critic.zero_grad()
         loss_actor.backward()
