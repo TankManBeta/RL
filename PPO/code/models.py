@@ -104,7 +104,7 @@ class Critic(nn.Module):
 
 
 class PPOAgent:
-    def __init__(self, n_features, n_actions, gamma=0.98, lr=1e-3, lam=0.95, epsilon_clip=0.1):
+    def __init__(self, n_features, n_actions, gamma=0.98, lr=1e-3, lam=0.95, epsilon_clip=0.2):
         super(PPOAgent, self).__init__()
         self.n_features = n_features
         self.n_actions = n_actions
@@ -134,18 +134,20 @@ class PPOAgent:
         action_prob = torch.tensor(transition_dict["action_prob"], dtype=torch.float).to(DEVICE)
         done = torch.tensor(transition_dict["done"], dtype=torch.float).view(-1, 1).to(DEVICE)
         # calculate advantage function
-        v = self.critic(state)
-        v_next = self.critic(state_next)
-        td_target = self.gamma * v_next * (1 - done) + reward
-        td = td_target - v
-        td = td.detach().numpy()
-        advantage_list = []
-        advantage = 0.0
-        for td_t in td[::-1]:
-            advantage = self.gamma * self.lam * advantage + td_t[0]
-            advantage_list.append([advantage])
-        advantage_list.reverse()
-        advantage = torch.tensor(advantage_list, dtype=torch.float)
+        with torch.no_grad():
+            v = self.critic(state)
+            v_next = self.critic(state_next)
+            td = self.gamma * v_next * (1 - done) + reward - v
+            td = td.detach().numpy()
+            advantage_list = []
+            advantage = 0.0
+            for td_t in td[::-1]:
+                advantage = self.gamma * self.lam * advantage + td_t[0]
+                advantage_list.append([advantage])
+            advantage_list.reverse()
+            advantage = torch.tensor(advantage_list, dtype=torch.float)
+            v_target = advantage + v
+
         pi = self.actor(state)
         dist = Categorical(probs=pi)
         dist_entropy = dist.entropy().mean()
@@ -159,7 +161,7 @@ class PPOAgent:
         # loss of actor
         loss_actor = torch.mean(-torch.min(surr1, surr2)) - 0.01 * dist_entropy
         # loss of critic
-        loss_critic = self.loss_function(td_target.detach(), v)
+        loss_critic = self.loss_function(v_target, self.critic(state))
         self.optimizer_actor.zero_grad()
         self.optimizer_critic.zero_grad()
         loss_actor.backward()

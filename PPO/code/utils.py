@@ -15,39 +15,33 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def run_one_episode(env, agent, data_pool):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
-    done = False
-    count = 0
-    while count < 200 and not done:
-        # use stored data to train model(don't need complete trajectory)
-        for _ in range(20):
-            action, action_prob = agent.choose_action(state)
-            state_next, reward, done, _, _ = env.step(action)
-            data_pool.push(state, action, reward, state_next, action_prob, done)
-            state = state_next
-            reward_episode += reward
-            count += 1
-            if done:
-                break
-        data = data_pool.get_data()
-        agent.learn(data)
+    done, truncated = False, False
+    while not done and not truncated:
+        action, action_prob = agent.choose_action(state)
+        state_next, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
+        data_pool.push(state, action, reward, state_next, action_prob, done)
+        state = state_next
+        reward_episode += reward
+    data = data_pool.get_data()
+    agent.learn(data)
     return reward_episode
 
 
 def evaluate(env, agent, save_path):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
     frame_list = []
     done = False
-    count = 0
-    while count < 200 and not done:
+    while not done and not truncated:
         prob = agent.actor(state)
         action = torch.argmax(prob).item()
-        next_state, reward, done, _, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
         reward_episode += reward
         state = next_state
-        count += 1
         frame_list.append(env.render())
     # draw frames
     for idx, frame in enumerate(frame_list):
@@ -72,10 +66,10 @@ def train():
     env_name = "CartPole-v1"
     env = gym.make(env_name, render_mode="rgb_array")
     observation_n, action_n = env.observation_space.shape[0], env.action_space.n
-    agent = PPOAgent(observation_n, action_n, gamma=0.98, lr=2e-3, lam=0.95, epsilon_clip=0.01)
+    agent = PPOAgent(observation_n, action_n, gamma=0.98, lr=2e-3, lam=0.95, epsilon_clip=0.2)
     reward_list = []
     data_pool = DataPool()
-    for episode in range(100):
+    for episode in range(300):
         reward = run_one_episode(env, agent, data_pool)
         reward_list.append(reward)
         print(f"Episode: {episode}, reward: {reward}")
@@ -86,4 +80,4 @@ def train():
     plt.plot(list(range(len(reward_list))), reward_list)
     plt.show()
     print("Training ends!!!")
-    evaluate(env, agent, pic_path)
+    # evaluate(env, agent, pic_path)
