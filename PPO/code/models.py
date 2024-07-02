@@ -166,6 +166,9 @@ class PPOAgent:
         self.optimizer_critic.zero_grad()
         loss_actor.backward()
         loss_critic.backward()
+        # gradient clip
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
         self.optimizer_actor.step()
         self.optimizer_critic.step()
 
