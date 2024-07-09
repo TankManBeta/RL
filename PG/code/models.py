@@ -20,7 +20,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 Transition = namedtuple("Transition", ("state", "action", "reward", "next_state", "action_prob", "done"))
 
 
-class Data:
+class DataPool:
     def __init__(self):
         self.pool = deque([])
 

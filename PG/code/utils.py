@@ -11,42 +11,40 @@ from pathlib import Path
 import gym
 import matplotlib.pyplot as plt
 import torch
-from models import PGAgent, Data
+from models import PGAgent, DataPool
 from torch.utils.tensorboard import SummaryWriter
 
 
-def run_one_episode(env, agent, data):
-    state, info = env.reset()
+def run_one_episode(env, agent, data_pool):
+    state, _ = env.reset()
     reward_episode = 0
-    done = False
-    count = 0
-    while count < 200 and not done:
+    done, truncated = False, False
+    while not done and not truncated:
         action, action_prob = agent.choose_action(state)
-        state_next, reward, done, _, _ = env.step(action)
-        data.push(state, action, reward, state_next, action_prob, done)
+        state_next, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
+        data_pool.push(state, action, reward, state_next, action_prob, done)
         state = state_next
         reward_episode += reward
-        count += 1
         if done:
             break
-    data = data.get_data()
+    data = data_pool.get_data()
     agent.learn(data)
     return reward_episode
 
 
 def evaluate(env, agent, save_path):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
     frame_list = []
-    done = False
-    count = 0
-    while count < 200 and not done:
+    done, truncated = False, False
+    while not done and not truncated:
         prob = agent.policy(state)
         action = torch.argmax(prob).item()
-        next_state, reward, done, _, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
         reward_episode += reward
         state = next_state
-        count += 1
         frame_list.append(env.render())
     # draw frames
     for idx, frame in enumerate(frame_list):
@@ -73,9 +71,9 @@ def train():
     observation_n, action_n = env.observation_space.shape[0], env.action_space.n
     agent = PGAgent(observation_n, action_n, gamma=0.98, lr=2e-3)
     reward_list = []
-    data = Data()
-    for episode in range(100):
-        reward = run_one_episode(env, agent, data)
+    data_pool = DataPool()
+    for episode in range(300):
+        reward = run_one_episode(env, agent, data_pool)
         reward_list.append(reward)
         print(f"Episode: {episode}, reward: {reward}")
         writer.add_scalar("Reward/train", reward, global_step=episode)
