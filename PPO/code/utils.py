@@ -34,7 +34,7 @@ def evaluate(env, agent, save_path):
     state, _ = env.reset()
     reward_episode = 0
     frame_list = []
-    done = False
+    done, truncated = False, False
     while not done and not truncated:
         prob = agent.actor(state)
         action = torch.argmax(prob).item()
@@ -80,4 +80,4 @@ def train():
     plt.plot(list(range(len(reward_list))), reward_list)
     plt.show()
     print("Training ends!!!")
-    # evaluate(env, agent, pic_path)
+    evaluate(env, agent, pic_path)

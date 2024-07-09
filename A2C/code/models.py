@@ -66,9 +66,9 @@ class Critic(nn.Module):
         return self.model(x)
 
 
-class ACAgent:
+class A2CAgent:
     def __init__(self, n_features, n_actions, gamma=0.98, lr=1e-3):
-        super(ACAgent, self).__init__()
+        super(A2CAgent, self).__init__()
         self.n_features = n_features
         self.n_actions = n_actions
         self.gamma = gamma
@@ -97,7 +97,9 @@ class ACAgent:
         # calculate advantage function
         v = self.critic(state)
         v_next = self.critic(state_next)
-        td = self.gamma * v_next * (1 - done) + reward - v
+        with torch.no_grad():
+            v_target = self.gamma * v_next * (1 - done) + reward
+        td = v_target - v
         # get probability
         pi = self.actor(state)
         prob = pi.gather(1, action)
@@ -105,7 +107,7 @@ class ACAgent:
         # loss of actor
         loss_actor = torch.mean(-log_prob * td.detach())
         # loss of critic
-        loss_critic = self.loss_function(self.gamma * v_next * (1-done) + reward, v)
+        loss_critic = self.loss_function(v_target, v)
         self.optimizer_actor.zero_grad()
         self.optimizer_critic.zero_grad()
         loss_actor.backward()

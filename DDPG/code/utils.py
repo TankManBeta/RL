@@ -15,13 +15,13 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def run_one_episode(env, agent, memory_pool, batch_size):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
-    done = False
-    count = 0
-    while count < 200 and not done:
+    done, truncated = False, False
+    while not done and not truncated:
         action = agent.choose_action(state)
-        next_state, reward, done, _, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
         memory_pool.push(state, action, reward, next_state, done)
         if len(memory_pool) > batch_size:
             state_batch, action_batch, reward_batch, next_state_batch, done_batch = memory_pool.sample(batch_size)
@@ -29,22 +29,20 @@ def run_one_episode(env, agent, memory_pool, batch_size):
             agent.learn(T_data)
         state = next_state
         reward_episode += reward
-        count += 1
     return reward_episode
 
 
 def evaluate(env, agent, save_path):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
     frame_list = []
-    done = False
-    count = 0
-    while count < 200 and not done:
+    done, truncated = False, False
+    while not done and not truncated:
         action = agent.mu(state).detach().numpy()
-        next_state, reward, done, _, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
         reward_episode += reward
         state = next_state
-        count += 1
         frame_list.append(env.render())
     # draw frames
     for idx, frame in enumerate(frame_list):
@@ -75,7 +73,7 @@ def train():
     memory_pool = MemoryPool(pool_size=50000)
     batch_size = 32
     reward_list = []
-    for episode in range(100):
+    for episode in range(300):
         reward = run_one_episode(env, agent, memory_pool, batch_size)
         reward_list.append(reward)
         print(f"Episode: {episode}, reward: {reward}")

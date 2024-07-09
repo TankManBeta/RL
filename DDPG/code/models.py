@@ -128,7 +128,7 @@ class DDPGAgent:
         # calculate target q value for next state and action
         q_value_next = reward + self.gamma * self.q_target(state_next, self.mu_target(state_next)) * (1-done)
         # critic loss
-        loss_q = torch.mean(F.mse_loss(q_value, q_value_next))
+        loss_q = torch.mean(F.mse_loss(q_value, q_value_next.detach()))
         self.optimizer_q.zero_grad()
         loss_q.backward()
         self.optimizer_q.step()
