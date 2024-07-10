@@ -27,14 +27,14 @@ def compute_advantage(gamma, lam, td_delta):
 
 
 def run_one_episode(env, agent):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
-    done = False
-    count = 0
+    done, truncated = False, False
     transition_dict = {"state": [], "action": [], "next_state": [], "reward": [], "done": []}
-    while count < 200 and not done:
+    while not done and not truncated:
         action = agent.choose_action(state)
-        state_next, reward, done, _, _ = env.step(action)
+        state_next, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
         transition_dict["state"].append(state)
         transition_dict["action"].append(action)
         transition_dict["next_state"].append(state_next)
@@ -42,24 +42,22 @@ def run_one_episode(env, agent):
         transition_dict["done"].append(done)
         state = state_next
         reward_episode += reward
-        count += 1
     agent.learn(transition_dict)
     return reward_episode
 
 
 def evaluate(env, agent, save_path):
-    state, info = env.reset()
+    state, _ = env.reset()
     reward_episode = 0
     frame_list = []
-    done = False
-    count = 0
-    while count < 200 and not done:
+    done, truncated = False, False
+    while not done and not truncated:
         prob = agent.actor(state)
         action = torch.argmax(prob).item()
-        next_state, reward, done, _, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action)
+        done = done or truncated
         reward_episode += reward
         state = next_state
-        count += 1
         frame_list.append(env.render())
     # draw frames
     for idx, frame in enumerate(frame_list):
@@ -87,7 +85,7 @@ def train():
     agent = TRPOAgent(observation_n, hidden_dim=128, action_dim=action_n, gamma=0.98, lam=0.95, critic_lr=1e-2,
                       kl_constraint=0.0005, alpha=0.5)
     reward_list = []
-    for episode in range(100):
+    for episode in range(300):
         reward = run_one_episode(env, agent)
         reward_list.append(reward)
         print(f"Episode: {episode}, reward: {reward}")
